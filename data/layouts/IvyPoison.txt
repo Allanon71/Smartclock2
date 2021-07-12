@@ -1,0 +1,222 @@
+// -----------------------------
+// Ivy Poison Layout
+// -----------------------------
+
+// Screen Definition
+// -----------------
+{ screen
+  [SIN]native_width  = 800
+  [SIN]native_height = 480
+  [SIN]scaled_width  = 800
+  [SIN]scaled_height = 480
+  [SBL]borderless    = 1
+  [SBL]sizeable      = 0
+  [SBL]fixed         = 1
+  [SBL]nomodeswitch  = 0
+  [SBL]noclose       = 1
+  [SBL]hidepointer   = 1
+  [SBL]smoothscale   = 0
+  }
+
+// Layout
+// ------
+{ layout
+  { #0
+    // Grey Background
+    [SST]type = background
+    [SST]name = greybg
+    { geometry
+      [SIN]x = 0
+      [SIN]y = 0
+      [SIN]w = 800
+      [SIN]h = 480
+      }
+    { params
+      [SST]file   = data/BG_Grey_01.png
+      [SBL]smooth = 0
+      }
+    }
+  { #1
+    // Ivy Animation
+    [SST]type = background
+    [SST]name = bganim
+    { geometry
+      [SIN]x = -20
+      [SIN]y = 0
+      [SIN]w = 208
+      [SIN]h = 480
+      }
+    { params
+      [SST]file   = data/SF_IvyPoison_01.gif
+      [SIN]fps    = 30
+      [SBL]smooth = 0
+      }
+    }
+  { #2
+    // Digital Clock
+    [SST]type = text
+    [SST]name = digitalclock
+    [SBL]smooth = 0
+    { geometry
+      [SIN]x = 140
+      [SIN]y = 10
+      [SIN]w = 660
+      [SIN]h = 180
+      [SIN]sw = 660
+      [SIN]sh = 180
+      }
+    { params
+      [SIN]freq         = 250
+      [SCL]clearcolor   = $FF000000
+      [SST]content      = {HH}:{mm}
+      [CNS]alignment    = #RIGHT
+      [SST]type         = digital-clock
+      { fontspec
+        [SST]name      = data/LEDCalc.ttf
+        [SIN]size      = 170
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $22000000
+        [SIN]edgethikness = 4
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 0
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 1
+        [SCL]shadowcolor = $66222222
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 5
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #3
+    // Date
+    [SST]type = text
+    [SST]name = date
+    { geometry
+      [SIN]x  = 140
+      [SIN]y  = 178
+      [SIN]w  = 660
+      [SIN]h  = 40
+      [SIN]sw = 660
+      [SIN]sh = 40
+      }
+    { params
+      [SST]type         = date
+      [SIN]freq         = 1000
+      [SCL]clearcolor   = $FF000000
+      [SST]content      = {wd}, {dd} {mn} {yyyy}
+      [CNS]alignment    = #RIGHT
+      { fontspec
+        [SST]name      = data/LEDCalc.ttf
+        [SIN]size      = 30
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 3
+        [SCL]color     = $DDDDDD
+        [SBL]bold      = 0
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #4
+    // Weather
+    [SST]type = scroller
+    [SST]name = weather
+    { geometry
+      [SIN]x = 140
+      [SIN]y = 220
+      [SIN]w = 650
+      [SIN]h = 180
+      [SIN]sw= 650
+      [SIN]sh= 180
+      }
+    { params
+      [SBL]pause = 1
+      [SIN]pauselen = 400
+      [SIN]freq = 10
+      [SST]content = {weather}
+      [SIN]offsetx = 0
+      [SIN]offsety = 0
+      [SST]direction    = vertical
+      [CNS]alignment    = #LEFT
+      [SFL]speed        = 2
+      [SCL]clearcolor   = $B0000000
+      { fontspec
+        [SST]name      = data/LEDCalc.ttf
+        [SIN]size      = 34
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 2
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 0
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #5
+    // News
+    [SST]type = scroller
+    [SST]name = news
+    { geometry
+      [SIN]x = 0
+      [SIN]y = 420
+      [SIN]w = 800
+      [SIN]h = 60
+      [SIN]sw = 800
+      [SIN]sh = 60
+      }
+    { params
+      [SBL]pause = 0
+      [SIN]pauselen = 200
+      [SIN]freq = 10
+      [SST]content = {news}
+      [SIN]offsetx = 0
+      [SIN]offsety = 0
+      [SST]direction    = horizontal
+      [CNS]alignment    = #LEFT
+      [SFL]speed        = 2
+      [SCL]clearcolor   = $90000000
+      { fontspec
+        [SST]name      = data/LEDCalc.ttf
+        [SIN]size      = 50
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 2
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 0
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 1
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 2
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  }

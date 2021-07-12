@@ -1,0 +1,1749 @@
+/* SMARTCLOCK version 2
+   A simple clock with interesting functions
+   to give a bit more life to a standard clock and
+   to take off some rust from your raspberry pi.
+   
+   Author  : Fabio Falcucci aka Allanon
+   License : Donationware
+
+*/
+;OpenResourceMonitor()
+;--- Required plugins ---
+@REQUIRE "hurl"
+
+
+/* @REQUIRE "rebelsdl", 
+  { EnableVSync = True,
+    RenderDriver = "rpi"
+    } 
+*/ 
+;--- Includes ---
+@INCLUDE "includes.hws"
+
+
+@DISPLAY 1, { DisableBlanker   = True, 
+              VSync            = True,
+              SoftwareRenderer = False }
+
+
+;--- Global app storage ---
+Local  tmp = FS.AppDataLocation("smartclock", "temp")
+Global did = 1 ; Display ID
+Global app = 
+  { paths = { temp    = tmp,
+              config  = "sc2conf.txt",
+              layouts = "data/layouts/"
+              },
+    screen = { width        = 800, 
+               height       = 480,
+               scaleWidth   = 800,
+               scaleHeight  = 480,
+               borderless   = False,
+               sizeable     = True,
+               fixed        = False,
+               nomodeswitch = False,
+               noclose      = False,
+               hidepointer  = False,
+               scalemode    = #SCALEMODE_AUTO,
+               smoothscale  = False,
+               mode         = "Fullscreen" },
+
+    currentLayout = 0,
+    layouts = { [0] =
+                { objects   = {},
+                  intervals = {},
+                  
+                  }
+                },    ; Each layout can be changed and is composed by
+                      ; several items like:
+                      ;  - background
+                      ;  - clock
+                      ;  - date
+                      ;  - weather
+                      ;  - news
+                      ; Each entry has these subtables
+                      ;  - layers -> list of layer names
+                      ;  - intervals -> list of intervals active
+                      ;  - fonts -> list of opened 
+                      
+    data = {          ; This field hold the data where the various items will
+      clock = {       ; pick the stuff to display
+        hour = 0,
+        min  = 0,
+        sec  = 0,
+        dec  = 0,
+        offset = 0,
+        dls = 0
+        },
+      date = {
+        day = 0,
+        month = 0,
+        year = 0,
+        dayname = 0,
+        monthname = 0
+        },
+      weather = {
+        ; Translate into your native language these strings
+        info = "",
+        },
+          
+      news = {
+        info = ""
+        } 
+      },
+      
+    config = {        ; This table hold the configuration parameters
+      background = {},; used to retrieve data & customize the clock
+      clock      = {},
+      actions    = {
+        clicktochange = True
+        },
+      date       = {
+        ; Translations & RSS Standard month
+        months    = { "-", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre" },
+        pubmonths = { "-", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" },
+        ; Translations & RSS Standard day
+        wdays     = { "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica" },
+        pubwdays  = { "Mon", "Tue", "Thu", "Fri", "Wed", "Sat", "Sun" }
+       },
+      color_hilight = $FFFF00,
+      color_error   = $FF0000,
+      color_pubdate = $00FF00,
+      weather = {
+        ; Translations
+        meteo        = "Meteo",
+        fetcherror   = "Error",
+        wind         = "Wind",
+        speed        = "Km/h",
+        sunrise      = "Sunrise",
+        sunset       = "Sunset",
+        temperature  = "Temperature",
+        humidity     = "Humidity",
+        pressure     = "Pressure",
+        feelsLike    = "Feels like",
+        dewPoint     = "Dew point",
+        clouds       = "Clouds",
+        rain         = "Rain",
+        uvi          = "UVI",
+        forecast     = "Forecast",
+        directions   = { "N", "NNE", "NE",
+                         "ENE", "E", "ESE",
+                         "SE", "SSE", "S",
+                         "SSO", "SO", "OSO",
+                         "O", "ONO", "NO",
+                         "NNO", "N" },
+        ; Weather request
+        request = {
+          apikey        = "your-apikey-here",
+          language      = "it",
+          units         = "metric",
+          latitude      = 42.24,
+          longitude     = 11.22,
+          forecast_days = 3,
+          exclude       = "minutely,hourly",
+          city          = "Capalbio Scalo",
+          url           = "http://api.openweathermap.org/data/2.5/onecall?",
+          },
+        ; Flags
+        updateFreq   = 5*60,
+        showWind     = True,
+        showsunrise  = True,
+        showsunset   = True,
+        showTemp     = True,
+        showFLike    = True,
+        showHumidity = True,
+        showPressure = True,
+        showDesc     = True,
+        showDewPoint = True,
+        showClouds   = True,
+        showUvi      = True,
+        showFCWind   = True,
+        showFCTemp   = True,
+        showFCRain   = True,
+        showFCClouds = True
+        },
+      news = {
+        updateFreq = 7*60,
+        title      = "Prima Pagina",
+        fetchError = "Error",
+        url        = "https://rss.adnkronos.com/RSS_PrimaPagina.xml" 
+        } }
+    }
+
+;---- SCROLLER UTILITIES ----
+Function app.HScroller_renderTextToBrush(obj)
+  ; Render the current text entry to a new brush
+  
+  Local txt = ""
+  If HaveItem(obj.splitted, obj.entryCurrent)
+    txt = obj.splitted[obj.entryCurrent]
+  EndIf
+  
+  Local width = GFX.Text.GetWidth(txt)
+  
+  If width <= 1 Then width = 10
+  obj.geometry.sw = width
+  obj.id = CreateBrush(Nil, width, obj.geometry.h, obj.info.clearColor,
+          { AlphaChannel = True,
+            Clear        = True,
+            Hardware     = True })
+
+  ; Draw the new content
+  SelectBrush(obj.id, #SELMODE_COMBO, 2)
+    TextOut(0, #CENTER, txt)
+  EndSelect
+
+EndFunction
+
+Function app.VScroller_renderTextToBrush(obj)
+  ; Render the current text entry to a new brush
+  
+  Local txt = ""
+  If HaveItem(obj.splitted, obj.entryCurrent)
+    txt = obj.splitted[obj.entryCurrent]
+  EndIf
+  
+  txt = GFX.Text.WordWrap(txt, obj.geometry.w)
+  Local th = TextHeight("|")
+  Local edgeSize = IIf(obj.info.font.edge, obj.info.font.edgethikness, 0)
+  Local height = ListItems(txt)*th
+  
+  If height <= 1 Then height = 10
+  height = height + edgeSize*2
+  obj.geometry.sh = height
+  obj.id = CreateBrush(Nil, obj.geometry.w, height, obj.info.clearColor,
+          { AlphaChannel = True,
+            Clear        = True,
+            Hardware     = True })
+
+  Local y = edgeSize
+  SelectBrush(obj.id, #SELMODE_COMBO, 2)
+    For Local i = 0 To ListItems(txt)-1
+    ; Draw the new content
+      TextOut(edgeSize, y, txt[i])
+      y = y + th + IIf(obj.info.font.edge, obj.info.font.edgethikness, 0)
+    Next
+  EndSelect
+
+EndFunction
+
+Function app.Scroller_HUpdate(obj)
+  Local x = obj.geometry.x + obj.geometry.w - obj.info.offsetx
+  
+  If obj.pause
+    If obj.isPaused
+      obj.pauseCnt = obj.pauseCnt - 1
+      If obj.pauseCnt = 0
+        ; Pause terminated
+        obj.isPaused = False
+        obj.pauseCnt = -1
+      Else
+        Return()
+      EndIf
+    Else
+      If x <= obj.geometry.x And obj.pauseCnt <> -1
+        obj.x = obj.geometry.x
+        obj.isPaused = True
+        obj.pauseCnt = obj.pauseLen
+        Return()
+      EndIf
+    EndIf
+  EndIf
+  
+  obj.info.offsetx = obj.info.offsetx + obj.info.speed
+  obj.x = x
+  
+  If -obj.x > obj.geometry.sw
+    obj.info.offsetx = 0
+    obj.x = obj.geometry.w - obj.info.offsetx
+    
+    obj.entryCurrent = obj.entryCurrent+1
+    If obj.entryCurrent > obj.entryMax Then obj.entryCurrent = 0
+    
+    FreeBrush(obj.id)
+    app.HScroller_renderTextToBrush(obj)
+    
+    obj.pauseCnt = 0
+  EndIf
+
+EndFunction
+
+Function app.Scroller_VUpdate(obj)
+  Local y = obj.geometry.y + obj.geometry.h - obj.info.offsety
+  
+  If obj.pause
+    If obj.isPaused
+      obj.pauseCnt = obj.pauseCnt - 1
+      If obj.pauseCnt = 0
+        ; Pause terminated
+        obj.isPaused = False
+        obj.pauseCnt = -1
+      Else
+        Return()
+      EndIf
+    Else
+      If y <= obj.geometry.y And obj.pauseCnt <> -1
+        obj.y = obj.geometry.y
+        obj.isPaused = True
+        obj.pauseCnt = obj.pauseLen
+        Return()
+      EndIf
+    EndIf
+  EndIf
+  
+  obj.info.offsety = obj.info.offsety + obj.info.speed
+  obj.y = y
+  
+  If -obj.y > obj.geometry.sh
+    obj.info.offsety = 0
+    obj.y = obj.geometry.h - obj.info.offsety
+    
+    obj.entryCurrent = obj.entryCurrent+1
+    If obj.entryCurrent > obj.entryMax Then obj.entryCurrent = 0
+    
+    FreeBrush(obj.id)
+    app.VScroller_renderTextToBrush(obj)
+    
+    obj.pauseCnt = 0
+  EndIf
+
+EndFunction
+
+Function app.layouts.Apply()
+  ; app.currentLayout
+  Local lCopy = CopyTable(app.loadedLayouts[app.currentLayout])
+  
+  ; Apply Screen Change
+  TB.Set(app.screen, lCopy.screen, False)
+  app.screen.width       = lCopy.screen.native_width
+  app.screen.height      = lCopy.screen.native_height
+  app.screen.scalewidth  = lCopy.screen.scaled_width
+  app.screen.scaleheight = lCopy.screen.scaled_height
+
+  ; did -> current display id
+  Local disp = -1
+  If did = 1
+    disp = 2
+  Else
+    disp = 1
+  EndIf
+  
+  CreateDisplay(disp, { x = 0, y = 0,
+                     Width  = app.screen.width, 
+                     Height = app.screen.height,
+                     DisableBlanker   = True, 
+                     VSync            = True,
+                     SoftwareRenderer = False
+                     })
+  OpenDisplay(disp)
+  CloseDisplay(did)
+  
+  Wait(250, #MILLISECONDS)
+  ActivateDisplay(disp, False)
+  SelectDisplay(disp)
+  did = disp
+  
+  ; ACTIONS
+  If app.config.actions.clickToChange
+    InstallEventHandler(
+      { OnMouseDown  = Function()
+                         ; Activate the next layout
+                         app.currentLayout = app.currentLayout + 1
+                         If app.currentLayout > ListItems(app.loadedLayouts)-1
+                          app.currentLayout = 0
+                         EndIf
+                         
+                         app.layouts.apply()
+                       EndFunction,
+        OnRightMouseDown = Function(msg)
+                             Wait(1000, #MILLISECONDS)
+                             End
+                           EndFunction
+        })
+  EndIf
+  
+  BeginDoubleBuffer()
+  
+  ; SCREEN
+  ; ------
+  SetDisplayAttributes({ x            = 0,
+                         y            = 0,
+                         ;width        = app.screen.width,
+                         ;height       = app.screen.height,
+                         borderless   = app.screen.borderless,
+                         sizeable     = app.screen.sizeable,
+                         fixed        = app.screen.fixed,
+                         nomodeswitch = app.screen.nomodeswitch,
+                         noclose      = app.screen.noclose,
+                         hidepointer  = app.screen.hidepointer,
+                         scalemode    = app.screen.scalemode,
+                         smoothscale  = app.screen.smoothscale,
+                         scaleWidth   = app.screen.scaleWidth,
+                         scaleHeight  = app.screen.scaleHeight })
+ 
+
+    
+  ; Apply Layout
+  Local layout = app.loadedLayouts[app.currentLayout].layout
+  app.layouts.add(layout)
+  
+EndFunction
+
+Function app.layouts.loadAll()
+  ; Scan the directory for all loadable layouts
+  ; ---------------------------------------------
+  app.loadedLayouts = {}
+  Local idx = 0
+  
+  OpenDirectory(1, app.paths.layouts)
+  Local e = NextDirectoryEntry(1)
+  While e <> Nil
+    If e.type = #DOSTYPE_FILE
+      app.loadedLayouts[idx] = FS.Config.Load(FullPath(app.paths.layouts, e.name))
+      Local i, v
+      For i, v In Pairs(app.loadedLayouts[idx].layout)
+        If HaveItem(v.params, "fontspec")
+          If v.params.fontspec.size < 1
+            v.params.fontspec.size = v.params.fontspec.size*app.loadedLayouts[idx].screen.native_height
+          EndIf
+          v.params.font = GFX.Font:New(v.params.fontspec)
+        EndIf
+      Next
+    EndIf
+    idx = idx + 1
+    e = NextDirectoryEntry(1)
+  Wend
+  CloseDirectory(1)
+
+EndFunction
+
+Function app.layouts.add(args)
+  ; Add a new layout to the app.layouts table to the next
+  ; available index.
+  ; ---------------------------------------------
+  ; INPUT
+  ;   args
+  ;    [n]=
+  ;     --- Common Fields ---
+  ;     .type        str   "background"  used with images & animations
+  ;                        "text"        used with text
+  ; "clock", "date", "weather", "news"
+  ;     .geometry    tbl   x, y, w, h fields to delimit the area
+  ;     .params      tbl   Depending on the type this field holds further customizations
+  ; --------------------------------------------- 
+  Local i, v, idx
+  idx = 0
+    
+  ; Free all intervals
+  For i, v In Pairs(app.layouts[idx].intervals)
+    ClearInterval(v)
+  Next
+  
+  ; Free all objects
+  For i, v In Pairs(app.layouts[idx].objects)
+    If v.objtype = "anim"
+      FreeAnim(v.id)
+      
+    ElseIf v.objtype = "image"
+      FreeBrush(v.id)
+      
+    ElseIf v.objtype = "scroller"
+      FreeBrush(v.id)
+      FreeClipRegion(v.clipid)
+      
+    EndIf
+    
+    If GetType(v.interval) <> #NUMBER
+      ClearInterval(v.interval)
+    EndIf
+    
+  Next
+  
+  app.layouts[idx] =
+    { objects   = {},   ; Objects
+      intervals = {}    ; Interval ids
+      }
+  
+  For i = 0 To ListItems(args)-1
+
+    Local cnt = ListItems(app.layouts[idx].objects)
+
+    app.layouts[idx].objects[cnt] =
+      { objtype  = "---",
+        id       = -1,
+        frames   = -1,
+        current  =  0,
+        interval = -1,
+        geometry = {},
+        smooth   = False 
+        }
+    Local obj = app.layouts[idx].objects[cnt]
+  
+    ; Scan & create all specified items
+    v = args[i]
+    
+    ; Create an object
+    obj.name     = v.name
+    obj.geometry = CopyTable(v.geometry)
+    
+    ; Parse geometry
+    If HaveItem(obj.geometry, "relative")
+      If obj.geometry.relative
+        obj.geometry.x = obj.geometry.x * app.screen.width
+        obj.geometry.y = obj.geometry.y * app.screen.height
+        obj.geometry.w = obj.geometry.w * app.screen.width
+        obj.geometry.h = obj.geometry.h * app.screen.height
+      EndIf
+      
+    Else
+      obj.geometry.relative = False
+      
+    EndIf
+    If Not(HaveItem(obj.geometry, "sw"))
+      obj.geometry.sw = obj.geometry.w
+    ElseIf obj.geometry.relative
+      obj.geometry.sw = obj.geometry.sw * app.screen.width
+    EndIf
+    If Not(HaveItem(obj.geometry, "sh"))
+      obj.geometry.sh = obj.geometry.h
+    ElseIf obj.geometry.relative
+      obj.geometry.sh = obj.geometry.sh * app.screen.height
+    EndIf
+ 
+    If HaveItem(v, "smooth") Then obj.smooth = v.smooth
+
+    Switch v.type
+      ;------------------------------------------
+      Case "scroller"
+      ;------------------------------------------
+        obj.objType = "scroller"
+        obj.info    = CopyTable(v.params)
+        obj.value   = ""
+        obj.x       = obj.geometry.x
+        obj.y       = obj.geometry.y
+        obj.pause   = obj.info.pause
+        obj.pauseLen= obj.info.pauseLen
+        obj.pauseCnt= 0
+        obj.isPaused= False
+        obj.clipid  = CreateClipRegion(Nil, #BOX, obj.geometry.x, obj.geometry.y, obj.geometry.w, obj.geometry.h)
+        
+        obj.id      = CreateBrush(Nil, 10, 10, #BLACK,
+                        { AlphaChannel = True,
+                          Clear        = True,
+                          Hardware     = True })
+
+        obj.interval = SetInterval(Nil, 
+          Function(msg)
+            Local o = msg.userData
+            
+            ; Compute the date text
+            Local txt = ReplaceStr(o.info.content, "{weather}", app.data.weather.info)
+                  txt = ReplaceStr(txt,               "{news}",    app.data.news.info)
+
+            ; Update the brush contents
+            o.info.font:Apply()
+
+            ; Check if we need to regenerate the brush
+            If (o.value <> app.data.weather.info And o.info.content = "{weather}") Or
+               (o.value <> app.data.news.info    And o.info.content = "{news}")
+
+              o.info.offsetx = 0
+              o.info.offsety = 0
+ 
+              FreeBrush(obj.id)
+
+              If o.info.direction = "horizontal"
+                ; Initialize an horizontal scroller
+                o.splitted     = SplitStr(txt, "\n")
+                o.entryCurrent = 0
+                o.entryMax     = ListItems(o.splitted)-1
+                For i, v In Pairs(o.splitted)
+                  If v = ""
+                    RemoveItem(o.splitted, i)
+                    o.entryMax = o.entryMax - 1
+                  EndIf
+                Next
+                
+                app.HScroller_renderTextToBrush(o)
+
+              Else
+                ; Initialize a vertical scroller
+                o.splitted = SplitStr(txt, "\n")                
+                o.entryCurrent = 0
+                o.entryMax     = ListItems(o.splitted)-1
+                For i, v In Pairs(o.splitted)
+                  If v = ""
+                    RemoveItem(o.splitted, i)
+                    o.entryMax = o.entryMax - 1
+                  EndIf
+                Next
+                
+                app.VScroller_renderTextToBrush(o)
+                
+              EndIf
+              
+              If o.info.content = "{weather}"
+                o.value = app.data.weather.info
+              ElseIf o.info.content = "{news}"
+                o.value = app.data.news.info
+              EndIf
+              
+            EndIf
+     
+            Local x = 0 
+            Local y = 0 
+
+            If o.info.direction = "horizontal"
+              app.Scroller_HUpdate(o)
+              
+            Else
+              app.Scroller_VUpdate(o)
+                          
+            EndIf
+
+          EndFunction,
+          obj.info.freq,
+          obj
+        )
+        
+      ;------------------------------------------
+      Case "text"
+      ;------------------------------------------
+        ; .name
+        ; .type
+        ; .id
+        ; .geometry
+        ;   .x
+        ;   .y
+        ;   .w
+        ;   .h
+        ;   .sw
+        ;   .sh
+        ; .params
+        ;   .type        date, digital-clock
+        ;   .content
+        ;         --- type = date ---
+        ;         {dd}   Day number
+        ;         {wd}   Weekday
+        ;         {mm}   Month number
+        ;         {mn}   Month name
+        ;         {yy}   Year short
+        ;         {yyyy} Year long
+        ;         --- type = digital-clock ---
+        ;         {hh}   Hours 12
+        ;         {mm}   Minutes
+        ;         {ss}   Seconds
+        ;         {dd}   Decimals
+        ;         {HH}   Hours 24
+        ;         {AMPM}
+        ;   .alignment
+        ;   .clearColor
+        ;   .fontSpec
+        ;     .name      = data/bubblebobble.ttf
+        ;     .size      = 40
+        ;     .antialias = 1
+        ;     .edge      = 1
+        ;     .edgecolor = $000000
+        ;     .edgethikness = 2
+        ;     .color     = $FFFFFF
+        ;     .bold      = 0
+        ;     .italic    = 0
+        ;     .underline = 0
+        ;     .shadow    = 1
+        ;     .shadowcolor = $44000000
+        ;     .shadowdirection = #SHDWSOUTHEAST
+        ;     .shadowdistance = 2
+        ;     .encoding  = #ENCODING_UTF8
+        ;     .engine    = #FONTENGINE_INBUILT
+        ;     .cache     = 1
+        ;----------------------------------------
+        obj.objType = "image"
+        obj.info    = CopyTable(v.params)
+        obj.value   = ""
+        obj.id      = CreateBrush(Nil, obj.geometry.w, obj.geometry.h, #BLACK,
+                        { AlphaChannel = True,
+                          Clear        = True,
+                          Hardware     = True })
+
+        obj.interval = SetInterval(Nil, 
+          Function(msg)
+            Local obj = msg.userData
+            
+            Switch obj.info.type
+              ;----------
+              Case "date"
+              ;----------
+                ; Compute the date text
+                Local txt = ReplaceStr(obj.info.content, "{dd}", app.data.date.day)
+                txt = ReplaceStr(txt, "{wd}", app.data.date.dayname)
+                txt = ReplaceStr(txt, "{mm}", app.data.date.month)
+                txt = ReplaceStr(txt, "{mn}", app.data.date.monthname)
+                txt = ReplaceStr(txt, "{yy}", RightStr(app.data.date.year, 2))
+                txt = ReplaceStr(txt, "{yyyy}", app.data.date.year)
+                
+                If obj.value <> txt
+                  ; Update the brush contents
+                  obj.info.font:Apply()
+                  
+                  ; Clear the brush
+                  SelectBrush(obj.id, #SELMODE_COMBO, 0)
+                    SetFillStyle(#FILLCOLOR)
+                    Box(0, 0, obj.geometry.w, obj.geometry.h, obj.info.clearColor)
+                  EndSelect
+                  
+                  ; Draw the new content
+                  Local x, tl = 0, TextWidth(txt)
+                  If obj.info.alignment = #CENTER
+                    x = (obj.geometry.w-tl)/2
+                  ElseIf obj.info.alignment = #LEFT
+                    x = 0
+                  ElseIf obj.info.alignment = #RIGHT
+                    x = obj.geometry.w - tl
+                  EndIf
+                  ; Draw the new content
+                  SelectBrush(obj.id, #SELMODE_COMBO, 2)
+                    TextOut(x, #CENTER, txt)
+                  EndSelect
+                  obj.value = txt
+                  
+                EndIf
+                
+              ;-------------------
+              Case "digital-clock"
+              ;-------------------
+                ; Compute the date text               
+                Local hours = ToNumber(app.data.clock.hour)
+                Local hours12, ampm = hours, ""
+                If hours > 12
+                  hours12 = hours-12
+                  ampm = "PM"
+                Else
+                  ampm = "AM"
+                EndIf
+                hours12 = PadNum(hours12, 2)
+                hours   = PadNum(hours, 2)
+                Local txt = ReplaceStr(obj.info.content, "{hh}", hours12)
+                txt = ReplaceStr(txt, "{mm}", app.data.clock.min)
+                txt = ReplaceStr(txt, "{ss}", app.data.clock.sec)
+                txt = ReplaceStr(txt, "{dd}", app.data.clock.dec)
+                txt = ReplaceStr(txt, "{HH}", hours)
+                txt = ReplaceStr(txt, "{AMPM}", ampm)
+
+                If obj.value <> txt
+                  ; Update the brush contents
+                  obj.info.font:Apply()
+                  
+                  ; Clear the brush
+                  SelectBrush(obj.id, #SELMODE_COMBO, 0)
+                    SetFillStyle(#FILLCOLOR)
+                    Box(0, 0, obj.geometry.w, obj.geometry.h, obj.info.clearColor)
+                  EndSelect
+                  
+                  ; Draw the new content
+                  Local x, tl = 0, TextWidth(txt)
+                  If obj.info.alignment = #CENTER
+                    x = (obj.geometry.w-tl)/2
+                  ElseIf obj.info.alignment = #LEFT
+                    x = 0
+                  ElseIf obj.info.alignment = #RIGHT
+                    x = obj.geometry.w - tl
+                  EndIf
+                  SelectBrush(obj.id, #SELMODE_COMBO, 2)
+                    TextOut(x, #CENTER, txt)
+                  EndSelect
+                  obj.value = txt
+                  
+                EndIf
+
+            EndSwitch
+            
+          EndFunction,
+          obj.info.freq,
+          obj
+        )
+        
+      ;------------------------------------------
+      Case "background"
+      ;------------------------------------------
+        ; Check the file argument
+        If Exists(v.params.file)
+          Local ispic, tbl = IsPicture(v.params.file)
+          
+          ; ANIMATION
+          ; ---------
+          If IsAnim(v.params.file)
+            ; params
+            ; ------
+            ; .name   -> file name
+            ; .fps    -> playback speed in fps
+            ; .smooth -> smooth scaling
+            obj.objtype  = "anim"
+            obj.id       = LoadAnim(Nil, v.params.file, 
+                             { loadAlpha        = tbl.alpha, 
+                               loadTransparency = tbl.transparency,
+                               hardware         = True })
+            obj.frames   = GetAttribute(#ANIM, obj.id, #ATTRNUMFRAMES)
+            obj.smooth   = v.params.smooth
+            obj.current  = 1
+            
+            ; Setup an interval to update the animation
+            obj.interval = SetInterval(Nil,
+              Function(msg)
+                ; Change current frame
+                Local info = msg.UserData
+                
+                info.current = info.current+1
+                If info.current > info.frames
+                  info.current = 1
+                  
+                EndIf
+              EndFunction,
+              1000/v.params.fps,
+              obj
+              )
+
+          ; PICTURE
+          ; ------- 
+          ElseIf ispic            
+            ; params
+            ; ------
+            ; .name   -> file name
+            ; .smooth -> True/False, used to smooth scaling
+            obj.objtype= "image"
+            obj.id     = LoadBrush(Nil, v.params.file, 
+                           { scalewidth  = obj.geometry.w, 
+                             scaleheight = obj.geometry.h, 
+                             smoothscale = v.params.smooth,
+                             loadAlpha   = tbl.alpha,
+                             hardware    = True })
+            obj.smooth = v.params.smooth
+            
+          ; UNRECOGNIZED/UNSUPPORTED
+          ; ------------------------
+          Else
+            DebugPrint("Unrecognized format: " .. v.params.file)
+            
+          EndIf
+        
+        Else
+          DebugPrint("File not found: " .. v.params.file)
+          
+        EndIf
+      
+      ;------------------------------------------
+      Case "special-clock"
+      ;------------------------------------------       
+        ; qua creo un layer dove andrò a renderizzare l'orologio
+        ; con un intervallo di un secondo o di un decimo di secondo
+        ; params : vedi singoli tipi
+        
+        ; Installo un intervallo per renderizzare il contenuto
+        ; all'interno del layer
+        
+        ; Frequenza di aggiornamento
+        obj.objtype  = "image"
+        obj.type     = v.params.type
+        obj.value    = ""
+        obj.id       = CreateBrush(Nil, v.geometry.w, v.geometry.h, #BLACK,
+                         { AlphaChannel = True,
+                           Clear        = True,
+                           Hardware     = True })
+        Local freq   = v.params.freq
+        
+        obj.info     = CopyTable(v.params)
+        obj.interval = SetInterval(Nil,
+          Function(msg)
+            ; Rendering del clock brush if changed
+            Local info = msg.userData
+
+            Local v = app.data.clock.dec .. app.data.clock.sec .. app.data.clock.min .. app.data.clock.hour
+            
+            If info.value = v Then Return()
+            info.value = v
+            
+            SelectBrush(info.id, #SELMODE_COMBO, 0)
+              SetFillStyle(#FILLCOLOR)
+              Box(0, 0, info.geometry.w, info.geometry.h,info.info.clearColor)
+            EndSelect()
+                
+            
+            Switch info.type                
+              Case "analog"
+                ; ANALOG CLOCK
+                ; ------------
+                ; params
+                ;  .freq
+                ;  .showSeconds
+                ;  .style
+                ;  .hours
+                ;    .draw
+                ;    .length
+                ;    .color
+                ;    .size
+                ;    .smooth
+                ;  .minutes
+                ;    .draw
+                ;    .length
+                ;    .color
+                ;    .size
+                ;    .smooth
+                ;  .seconds
+                ;    .draw
+                ;    .length
+                ;    .color
+                ;    .size
+                ;  .center
+                ;    .draw
+                ;    .color
+                ;    .size
+                ;  .type = "analog"
+
+                Local x = info.geometry.w/2
+                Local y = info.geometry.h/2
+
+                SelectBrush(info.id, #SELMODE_COMBO,  2)
+                  SetFormStyle(info.info.style)
+
+                  ; Hour
+                  ; ----
+                  If info.info.hours.draw
+                    Local vh = ToNumber(app.data.clock.hour)
+                    If info.info.hours.smooth
+                      vh = vh + ToNumber(app.data.clock.min)/60
+                    EndIf
+                    If vh >= 12 Then vh = vh - 12
+                    Local g = -360/12 * vh + 180 
+                    Local xd = Sin(Rad(g))*info.info.hours.length
+                    Local yd = Cos(Rad(g))*info.info.hours.length
+                    
+                    Line(x, y, x+xd, y+yd, info.info.hours.color, { Thickness = info.info.hours.size })
+                  EndIf
+                  
+                  ; Minutes
+                  ; -------
+                  If info.info.minutes.draw
+                    Local vh = ToNumber(app.data.clock.min)
+                    If info.info.minutes.smooth
+                      vh = vh + ToNumber(app.data.clock.sec)/60
+                    EndIf
+                    ;If vh >= 60 then vh = vh - 12
+                    Local g = -360/60 * vh + 180 
+                    Local xd = Sin(Rad(g))*info.info.minutes.length
+                    Local yd = Cos(Rad(g))*info.info.minutes.length
+                    
+                    Line(x, y, x+xd, y+yd, info.info.minutes.color, { Thickness = info.info.minutes.size })
+                  EndIf
+                  
+                  ; Seconds
+                  ; -------
+                  If info.info.seconds.draw
+                    Local vh = ToNumber(app.data.clock.sec)
+                    If info.info.seconds.smooth
+                      vh = vh + ToNumber(app.data.clock.dec)/10
+                    EndIf
+
+                    Local g = -360/60 * vh + 180 
+                    Local xd = Sin(Rad(g))*info.info.seconds.length
+                    Local yd = Cos(Rad(g))*info.info.seconds.length
+                    
+                    Line(x, y, x+xd, y+yd, info.info.seconds.color, { Thickness = info.info.seconds.size })
+                  EndIf
+                  
+                  ; Center
+                  ; ------
+                  If info.info.center.draw
+                    Local h = info.info.center.size/2
+                    Circle(x, y, info.info.center.size, info.info.center.color, { AnchorX = 0.5, ANchorY = 0.5 })
+                  EndIf
+                
+                EndSelect
+                
+
+              Case "gauge"
+                ; Gauge can be rendered with filled boxes or filled arcs
+                ;
+                ; params
+                ;  .freq
+                ;  .showSeconds
+                ;  .style
+                ;  .hours
+                ;    .draw
+                ;    .type box|circle
+                ;    .size
+                ;    .colors[0,1]
+                ;  .minutes
+                ;    .draw
+                ;    .type box|circle
+                ;    .size
+                ;    .colors[0,1]
+                ;  .seconds
+                ;    .draw
+                ;    .type box|circle
+                ;    .size
+                ;    .colors[0,1]
+                ;  .center
+                ;    .draw
+                ;    .color
+                ;    .size
+                ;  .type = "gauge"
+                
+                Local x = info.geometry.w/2
+                Local y = info.geometry.h/2
+
+                
+                SelectLayer(info.layerName, #SELMODE_COMBO, Nil, 2)
+                SetFormStyle(info.style)
+
+                Local w = info.geometry.w
+                Local xt = 0
+                Local yt = 0
+                
+                ; Hour
+                ; ----
+                If info.hours.draw
+                  If info.hours.type = "box"
+                    Local h = ToNumber(app.data.clock.hour) + ToNumber(app.data.clock.min)/60
+                    Local f = w/24*h
+                    If f <= 1 Then f = 1
+                    Box(xt, yt, w, info.hours.size, info.hours.colors[0])
+                    Box(xt, yt, f, info.hours.size, info.hours.colors[1])
+                    
+                  ElseIf info.hours.type = "circle"
+                    Local h = ToNumber(app.data.clock.hour) + ToNumber(app.data.clock.min)/60
+                    
+                    Local g = 360/24 * h-90
+                    Circle(x, y, info.hours.size, info.hours.colors[0], { AnchorX = 0.5, ANchorY = 0.5 })
+                    Arc(x, y, info.hours.size, info.hours.size, 270, g+360, info.hours.colors[1], { AnchorX = 0.5, ANchorY = 0.5 })                 
+                    
+                  EndIf
+                  
+                  yt = yt + info.hours.size
+                EndIf
+
+                ; Minute
+                ; ------
+                If info.minutes.draw
+                  If info.minutes.type = "box"
+                    Local h = ToNumber(app.data.clock.min) + ToNumber(app.data.clock.sec)/60
+                    Local f = w/60*h
+                    If f <= 1 Then f = 1
+                    Box(xt, yt, w, info.minutes.size, info.minutes.colors[0])
+                    Box(xt, yt, f, info.minutes.size, info.minutes.colors[1])
+                  
+                  ElseIf info.seconds.type = "circle"
+                    Local h = ToNumber(app.data.clock.min) + ToNumber(app.data.clock.sec)/60
+                    
+                    Local g = 360/60 * h-90
+                    Circle(x, y, info.minutes.size, info.minutes.colors[0], { AnchorX = 0.5, ANchorY = 0.5 })
+                    Arc(x, y, info.minutes.size, info.minutes.size, 270, g+360, info.minutes.colors[1], { AnchorX = 0.5, ANchorY = 0.5 })                 
+                  
+                  EndIf
+                  
+                  yt = yt + info.seconds.size
+                EndIf
+                
+                ; Seconds
+                ; ------
+                If info.seconds.draw
+                  If info.seconds.type = "box"
+                    Local h = ToNumber(app.data.clock.sec) + ToNumber(app.data.clock.dec)/10
+                    Local f = w/60*h
+                    If f <= 1 Then f = 1
+                    Box(xt, yt, w, info.seconds.size, info.seconds.colors[0])
+                    Box(xt, yt, f, info.seconds.size, info.seconds.colors[1])
+                    
+                  ElseIf info.seconds.type = "circle"
+                    Local h = ToNumber(app.data.clock.sec) + ToNumber(app.data.clock.dec)/10
+                    
+                    Local g = 360/60 * h-90
+                    Circle(x, y, info.seconds.size, info.seconds.colors[0], { AnchorX = 0.5, ANchorY = 0.5 })
+                    Arc(x, y, info.seconds.size, info.seconds.size, 270, g+360, info.seconds.colors[1], { AnchorX = 0.5, ANchorY = 0.5 })                 
+                    
+                  EndIf
+                EndIf
+                
+                ; Center
+                ; ------
+                If info.center.draw
+                  Circle(x, y, info.center.size, info.center.color, { AnchorX = 0.5, ANchorY = 0.5 })
+                EndIf
+                
+                EndSelect()
+
+            EndSwitch
+            
+          EndFunction,
+          freq,
+          obj
+          )
+      
+      ;------------------------------------------
+      Case "weather"
+      ;------------------------------------------
+        /*
+        ; Setup a scrolling text
+        Local info = CopyTable(v.params)
+        info.geometry = CopyTable(v.geometry)
+        info.layerName = layerName
+*/
+      
+      ;------------------------------------------
+      Case "news"
+      ;------------------------------------------
+      /*
+        obj.objtype  = "textscroll"
+        obj.type     = v.params.type
+        obj.value    = ""
+        obj.params   = CopyTable(v.params)
+        
+        ; CONTENT & NL Replacer
+        obj.content = app.data.news.info
+        If HaveItem(v.params, "newlinereplacer")
+          obj.content = ReplaceStr(obj.content, "\n", v.params.newlinereplacer)
+        EndIf
+
+        obj.Font:Apply()
+        
+        ; AUTOWRODWRAP Content diventa una tabella
+        If v.params.AutoWordWrap
+          Local lw = v.geometry.w
+          Local wrapped = GFX.Text.WordWrap(obj.content, lw)
+          Local items   = ListItems(wrapped)-1
+          obj.content[i] = wrapped[0]
+          For Local k = 1 To items
+            InsertItem(obj.content, wrapped[k], i+k)
+          Next
+        Else
+          obj.content = { obj.content }
+        EndIf
+        
+        ; Clip region
+        obj.clip = CreateClipRegion(Nil, #BOX, v.geometry.x, v.geometry.y, v.geometry.w, v.geometry.y)
+        */
+        ; creazione brush
+        ;Local w, h   = creo un brush lungo quanto la linea più lunga di testo
+        
+        ; rendering testo
+        
+        ; intervallo di spostamento all'interno di
+        ; una clip region
+        ; all'interno, se il testo cambia, aggiorna
+        ; il brush.
+        
+        
+    EndSwitch
+    
+  Next
+  
+EndFunction
+
+Function app.getNews()
+
+  ExitOnError(False)
+  Local feed = DownloadFile(app.config.news.url, { Adapter = "hurl" })
+  Local e    = GetLastError()
+  ExitOnError(True)
+
+  app.data.news.info = UpperStr(app.config.news.title) .. " "
+  Local info = app.data.news.info
+
+  If e <> 0
+    ; Store the error entry in the info table
+    app.data.news.info = app.config.news.title .. "\n" ..
+                         "[color=" .. app.config.color_hilight .. "]" .. app.config.news.fetchError .. ":" .. e .. "[/color]" .. "\n" ..
+                         "[color=" .. app.config.color_error .. "]" .. GetErrorName(e) .. "[/color]"
+    Return()
+
+  EndIf
+
+  Local tags = {}
+  Local t = HL.CutBetweenLimits(feed, "<item>", "</item>", tags)
+
+  Local news, data = {}, {}
+  For i, v In Pairs(tags)
+    news[i] = { title       = "",
+                description = "",
+                link        = "",
+                enclosure   = "",
+                category    = "",
+                pubdate     = "" }
+    Local title       = HL.GetBetweenLimits(v, "<title>", "</title>")
+    Local description = HL.GetBetweenLimits(v, "<description>", "</description>")
+    Local link        = HL.GetBetweenLimits(v, "<link>", "</link>")
+    Local enclosure   = HL.GetBetweenLimits(v, "<enclosure>", "/>")
+    Local category    = HL.GetBetweenLimits(v, "<category>", "</category>")
+    Local pubdate     = HL.GetBetweenLimits(v, "<pubDate>", "</pubDate>")
+
+    If TB.Item.Exists(title, 0)       Then news[i].title       = "[color=" .. app.config.color_hilight .. "]" .. UpperStr(title[0]) .. "[/color]"
+    If TB.Item.Exists(description, 0) Then news[i].description = description[0]
+    If TB.Item.Exists(link, 0)        Then news[i].link        = link[0]
+    If TB.Item.Exists(enclosure, 0)   Then news[i].enclosure   = enclosure[0]
+    If TB.Item.Exists(category, 0)    Then news[i].category    = category[0]
+    If TB.Item.Exists(pubdate, 0)     Then news[i].pubdate     = "[color=" .. app.config.color_pubdate .. "]" .. pubdate[0] .. "[/color]"
+    
+    ; Replace months & week days
+    Local k, l
+    For k, l In Pairs(app.config.date.pubmonths)
+      news[i].pubdate = ReplaceStr(news[i].pubdate, l, app.config.date.months[k])
+    Next
+    For k, l In Pairs(app.config.date.pubwdays)
+      news[i].pubdate = ReplaceStr(news[i].pubdate, l, app.config.date.wdays[k])
+    Next   
+    
+    For k, m In Pairs(news[i])
+      news[i][k] = ReplaceStr(news[i][k], "<![CDATA[", "")
+      news[i][k] = ReplaceStr(news[i][k], "]]>", "")
+    Next
+    ;news[i].pubdate = UnleftStr(news[i].pubdate, 3)
+
+    data[i] = news[i].pubdate .. ", " .. news[i].title
+    If ReplaceStr(news[i].description, " ", "") <> ""
+      data[i] = data[i] .. " " .. news[i].description
+    EndIf
+    
+    app.data.news.info = app.data.news.info .. data[i] .. "\n"
+    
+  Next
+
+ 
+EndFunction
+
+Function app.getWeather()
+  ; Utility func -> Convert the wind direction from degrees to an abbreviation
+  Local windToDir = Function(d)
+                      ; Convert wind direction
+                      If ToString(d) = "?" Then Return("?")
+                  
+                      Local idx = Mod(d, 360)
+                      idx = Round(Idx/22.5)
+                  
+                      Return(app.config.weather.directions[idx])
+                  
+                    EndFunction
+                    
+  ; Create the request
+  Local d = app.config.weather.request
+  Local u = d.url .. "appid="    .. d.apikey ..
+                     "&lat="     .. d.latitude ..
+                     "&lon="     .. d.longitude ..
+                     "&cnt="     .. d.forecast_Days ..
+                     "&exclude=" .. d.exclude ..
+                     "&lang="    .. d.language ..
+                     "&units="   .. d.units
+  
+  ; If there are some errors avoids crashes and report the error
+  ; instead of the weather conditions
+  ExitOnError(False)
+  Local data = DownloadFile(u, { Adapter = "hurl" })
+  Local e    = GetLastError()
+  ExitOnError(True)
+
+  ; Check if there was an error
+
+  If e <> 0
+    ; Store the error entry in the info table
+    app.data.weather.info = app.config.weather.meteo .. "\n" ..
+                            "[color=" .. app.config.color_hilight .. "]" .. app.config.weather.fetchError .. ":" .. e .. "[/color]" .. "\n" ..
+                            "[color=" .. app.config.color_error .. "]" .. GetErrorName(e) .. "[/color]"
+    Return()
+
+  EndIf
+  
+  
+  ; Decode weather data
+  ExitOnError(False)
+    Local t = DeserializeTable(data)
+    Local e = GetLastError()
+  ExitOnError(True)
+  If e <> 0
+    ; Try my custom routine
+    t = JSON.Decode(data)
+    If GetType(t) = #TABLE Then e = 0
+  EndIf
+  
+  If e <> 0 Or GetType(t) <> #TABLE
+    ; Place a timeout to retry to fetch the weather in 1 minute
+    app.data.weather.info = app.config.weather.meteo .. " : " ..
+                            "[color=" .. app.config.color_hilight .. "]" .. app.config.weather.fetchError .. ":" .. e .. "[/color]" .. "\n" ..
+                            "[color=" .. app.config.color_error .. "]" .. GetErrorName(e) .. "[/color]"
+    
+    SetTimeout(Nil, 
+               Function() app.getWeather() EndFunction,
+               1000*60)
+    Return()
+  EndIf
+  
+  ; Exit if 't' is nil
+  If IsNil(t) Then Return()
+  
+  ; Store the weather
+  app.data.weather.fetched = t
+  
+  ; Build info table
+  ; ----------------
+  If Not(HaveItem(t.current, "wind_deg")) Then t.current.wind_deg = "?"
+  
+  Local sp, i, v = ""
+  Local windDir = WindToDir(t.current.wind_deg) ; Convert degrees to abbreviation
+  
+  Local hc = "[color=" .. app.config.color_hilight .. "]"
+  Local ec = "[color=" .. app.config.color_error .. "]"
+  Local co = "[/color]"
+  
+  ; Build the weather table
+  Local wflags = app.config.weather
+  
+  ; Validate current fields
+  Local fields = { "wind_speed", "sunrise", "sunset", "temp", "feels_like", "dew_point", "clouds", "uvi", "humidity", "pressure" }
+  For i, v In Pairs(fields)
+    If Not(HaveItem(t.current, v)) Then t.current[v] = -99
+  Next
+  
+  ; CURRENT WEATHER
+  app.data.weather.info = hc .. app.config.weather.meteo ..       " " .. app.config.weather.request.city .. co .. ", " ..
+    IIf(wflags.showDesc,    UpperStr(t.current.weather[0].description) .. "\n", "") .. 
+    IIf(wflags.showClouds,  app.config.weather.clouds ..      " " .. Int(t.current.clouds) .. "%" .. "\n", "") .. 
+    IIf(wflags.showWind,    app.config.weather.wind ..        " " .. t.current.wind_speed .. " " .. app.config.weather.speed .. " " .. windDir .. "\n", "") ..
+    IIf(wflags.showSunrise, app.config.weather.sunrise ..     " " .. RightStr(TimestampToDate(t.current.sunrise + t.timezone_offset, True), 8) .. ", ", "") ..
+    IIf(wflags.showSunset,  app.config.weather.sunset ..      " " .. RightStr(TimestampToDate(t.current.sunset + t.timezone_offset, True), 8) .. "\n", "") ..
+    IIf(wflags.showTemp,    app.config.weather.temperature .. " " .. Int(t.current.temp) .. "°" .. "\n", "") ..
+    IIf(wflags.showFLike,   app.config.weather.feelsLike ..   " " .. Int(t.current.feels_Like) .. "°" .. "\n", "") ..
+    IIf(wflags.showDewPoint,app.config.weather.dewPoint ..    " " .. Int(t.current.dew_point) .. "°" .. "\n", "") ..
+    IIf(wflags.showUvi,     app.config.weather.uvi ..         " " .. t.current.uvi .. "/10" .. "\n", "") ..
+    IIf(wflags.showHumidity,app.config.weather.humidity ..    " " .. t.current.humidity .. "%" .. "\n", "") ..
+    IIf(wflags.showPressure,app.config.weather.pressure ..    " " .. t.current.pressure .. "\n", "")
+  
+  ; FORECAST
+  app.data.weather.info = app.data.weather.info .. "\n\n" .. hc .. app.config.weather.forecast .. co .. "\n"
+  
+  ; Loop
+  For Local i = 1 To app.config.weather.request.forecast_days
+    ; Every field is verified because sometimes the API does not return all
+    ; the fileds but only those are available at that time.
+    If HaveItem(t.daily, i)
+      ; Check if icon is downloaded otherwise download it
+      Local iconCache = FullPath(app.paths.temp, t.daily[i].weather[0].icon .. ".png")
+      If Not(Exists(iconCache))
+        ; Download the icon
+        DownloadFile("http://openweathermap.org/img/wn/" .. t.daily[i].weather[0].icon .. "@2x.png",
+                     { file = iconCache, 
+                       Adapter = "hurl" })
+      EndIf
+
+      Local wspd = "-- "
+      If HaveItem(t.daily[i], "wind_speed") Then wspd = FormatStr("%i", t.daily[i].wind_speed)
+      Local tmin = "-- "
+      Local tmax = "-- "
+      If HaveItem(t.daily[i], "temp")
+        If HaveItem(t.daily[i].temp, "min") Then tmin = FormatStr("%i", t.daily[i].temp.min)
+        If HaveItem(t.daily[i].temp, "max") Then tmax = FormatStr("%i", t.daily[i].temp.max)
+      EndIf
+      Local rain = "-- "
+      If HaveItem(t.daily[i], "rain") Then rain = FormatStr("%.1f", t.daily[i].rain)
+      Local cloud = "-- "
+      If HaveItem(t.daily[i], "cloud") Then cloud = FormatStr("%i", t.daily[i].clouds)
+      
+      Local today = app.GetWeekday(app.data.date.dayname, i) .. ": "
+      app.data.weather.info = app.data.weather.info .. "[color=" .. app.config.color_pubdate .. "]" .. today .. "[/color]" .. t.daily[i].weather[0].description
+      
+      Local windDir = WindToDir(t.daily[i].wind_deg)  
+      
+      If app.config.weather.showFCWind
+        app.data.weather.info = app.data.weather.info .. "\n" .. app.config.weather.wind .. " " .. wspd .. " " .. app.config.weather.speed .. " " .. windDir
+        
+      EndIf
+      If app.config.weather.showFCTemp
+        app.data.weather.info = app.data.weather.info .. "\n" ..  app.config.weather.temperature .. " Min " .. tmin .. "°, Max " ..  tmax .. "°"
+        
+      EndIf
+      If app.config.weather.showFCRain
+        app.data.weather.info = app.data.weather.info .. "\n" ..  app.config.weather.rain .. " " .. rain .. "mm"
+        
+      EndIf
+      If app.config.weather.showFCClouds
+        app.data.weather.info = app.data.weather.info .. "\n" .. app.config.weather.clouds .. " " ..  cloud .. "%"
+        
+      EndIf
+      
+    EndIf
+    
+    app.data.weather.info = app.data.weather.info .. "\n"
+        
+  Next
+  
+EndFunction
+
+Function app.getWeekday(wday, offset)
+  ; Translate the weekday
+  ; ---------------------
+  Local idx = 0
+  For Local i = 0 To 6
+    If LowerStr(app.config.date.wdays[i]) = LowerStr(wday)
+      idx = i
+      Break()
+    EndIf
+  Next
+
+  Return(app.config.date.wdays[Wrap(idx+offset, 0, 7)])
+  
+EndFunction
+
+Function app.updateClock()
+  Local t = GetTimestamp(True)
+  Local min, dls = GetTimeZone()
+  Local d = TimestampToDate(t, True)
+
+  app.data.clock.offset = min
+  app.data.clock.dls    = dls
+  app.data.clock.dec    = Int((t - Int(t))*10)
+  Local time            = ReplaceStr(RightStr(d, 8), ":", "")
+  app.data.clock.sec    = PadNum(ToNumber(RightStr(time, 2)), 2)
+  app.data.clock.min    = PadNum(ToNumber(MidStr(time, 2, 2)), 2)
+  Local h = ToNumber(LeftStr(time, 2))-min/60
+  If h>23 Then h=h-24
+  app.data.clock.hour   = PadNum(h, 2)
+  Local mn                = GetDateNum(#DATEMONTH)
+  app.data.date.day       = PadNum(GetDateNum(#DATEDAY), 2)
+  app.data.date.month     = PadNum(mn, 2)
+  app.data.date.year      = GetDateNum(#DATEYEAR)
+  app.data.date.dayname   = GetWeekDay()
+  app.data.date.monthname = app.config.date.months[mn]
+
+EndFunction
+
+Function app.configLoad()
+  ; Load the configuration file & overwrites the
+  ; default values.
+  ; ---------------------------------------------
+  Local conf = FS.Config.Load(app.paths.config)
+  
+  TB.Set(app.config, conf, False)
+  
+EndFunction
+
+Function app.init()
+  ; CONFIGURATION FILE
+  ; ------------------
+  app.configLoad()
+  
+  ; LAYOUTS
+  ; -------
+  app.layouts.loadAll()  
+  
+  ; CLOCK UPDATER
+  ; -------------
+  app.updateClock()
+  app._clockUpdater = SetInterval(Nil,
+                        app.updateClock,
+                        50)
+                        
+  ; WEATHER & FORECAST
+  ; ------------------
+  app.getWeather()
+  app._weatherUpdater = SetInterval(Nil,
+    app.getWeather,
+    app.config.weather.updateFreq*1000)
+  
+  ; NEWS
+  ; ----
+  app.getNews()
+  app._newsUpdater = SetInterval(Nil,
+    app.getNews,
+    app.config.news.updateFreq*1000)
+    
+  ; APPLY LAYOUT
+  app.layouts.Apply()
+  
+  
+EndFunction
+
+
+
+; TEST
+app.init()
+
+
+Function dummyFuncToHideTheCode()
+app.layouts.add(
+  { /*{ type     = "background",
+      geometry = { x = 0, y = 0, h = 400, w = 800 },
+      name     = "bg1",
+      params   = 
+        { file = "data/test_bg.jpg",
+          smooth = True }
+      }, */
+    { type     = "background",
+      geometry = { x = 0, y = 0, h = 480, w = 800 },
+      name     = "bganim",
+      params   = 
+        { file   = "data/SF_AnimBG_01.gif",
+          fps    = 10,
+          smooth = False }
+      },/*
+    { type     = "background",
+      geometry = { x = -30, y = 180, h = 242*1.2, w = 271*1.2 },
+      name     = "chunli",
+      params   = 
+        { file   = "data/SF_ChunLi_01.gif",
+          fps    = 12,
+          smooth = False }
+      },
+    { type     = "background",
+      geometry = { x = 570, y = 210, h = 195*1.35, w = 157*1.35 },
+      name     = "maishiranui",
+      params   = 
+        { file   = "data/KOF_MaiShiranui_01.gif",
+          fps    = 14,
+          smooth = False }
+      },
+      
+    { type     = "clock",
+      geometry = { x = 410, y = 0, h = 100, w = 390 },
+      name     = "clockdig",
+      params   = 
+        { freq         = 250,
+          showDecimals = False,
+          showSeconds  = True,
+          separator    = ":",
+          font = GFX.Font:New(
+            { name = "data/droid.ttf",
+              size = 100,
+              antialias = True,
+              edge = True,
+              edgeColor = $000000,
+              edgeThikness = 4,
+              color = $FFFFFF,
+              bold = True,
+              italic = False,
+              underline = False,
+              shadow = True,
+              shadowColor = $44000000,
+              shadowDirection = #SHDWSOUTHEAST,
+              shadowDistance = 3,
+              encoding = #ENCODING_UTF8,
+              engine = #FONTENGINE_INBUILT,
+              cache = True
+              }),
+          alignment    = #CENTER,
+          type         = "digital"
+          }
+      },*/
+      /*
+    { type     = "clock",
+      geometry = { x = 600, y = 80, h = 150, w = 200 },
+      name     = "clockana",
+      params   = 
+        { freq         = 250,
+          showSeconds  = True,
+          style        = #ANTIALIAS,
+          hours        = { draw = True, length = 50, color = $00FF00, size = 4, smooth = True },
+          minutes      = { draw = True, length = 70, color = $FF0000, size = 3, smooth = True },
+          seconds      = { draw = True, length = 80, color = $FF00FF, size = 2, smooth = False },
+          center       = { draw = True, color = $FFFFFF, size = 4 },
+          type         = "analog"
+          }
+      }, */
+      /*
+    { type     = "clock",
+      geometry = { x = 500, y = 250, h = 150, w = 200 },
+      name     = "clockgau1",
+      params   = 
+        { freq         = 500,
+          showSeconds  = True,
+          style        = #ANTIALIAS,
+          hours        = { draw = True, type = "box", size = 20, colors = { $004400, $00FF00 } },
+          minutes      = { draw = True, type = "box", size = 15, colors = { $440000, $FF0000 } },
+          seconds      = { draw = True, type = "box", size = 12, colors = { $000044, $0000FF } },
+          center       = { draw = False, color = $FFFFFF, size = 4 },
+          type         = "gauge"
+          }
+      }, */
+      /*
+    { type     = "clock",
+      geometry = { x = 400, y = 80, h = 200, w = 200 },
+      name     = "clockgau2",
+      params   = 
+        { freq         = 500,
+          showSeconds  = True,
+          style        = #ANTIALIAS,
+          hours        = { draw = True, type = "circle", size = 50, colors = { $004400, $00FF00 } },
+          minutes      = { draw = True, type = "circle", size = 45, colors = { $440000, $FF0000 } },
+          seconds      = { draw = True, type = "circle", size = 40, colors = { $000044, $0000FF } },
+          center       = { draw = True, color = $444444, size = 35 },
+          type         = "gauge"
+          }
+      }, */
+      
+      /*
+    { type     = "date",
+      geometry = { x = 580, y = 85, h = 40, w = 220 },
+      name     = "date",
+      params   = 
+        { freq         = 500,
+          content      = "{dd} {mn} {yyyy}",
+          font         = GFX.Font:New(
+            { name = "data/droid.ttf",
+              size = 30,
+              antialias = True,
+              edge = True,
+              edgeColor = $000000,
+              edgeThikness = 4,
+              color = $FFFFFF,
+              bold = True,
+              italic = False,
+              underline = False,
+              shadow = False,
+              shadowColor = $44000000,
+              shadowDirection = #SHDWSOUTHEAST,
+              shadowDistance = 3,
+              encoding = #ENCODING_UTF8,
+              engine = #FONTENGINE_INBUILT,
+              cache = True
+              }),
+          alignment    = #CENTER
+          }
+      },*/
+      
+      /*
+    { type     = "weather",
+      geometry = { x = 10, y = 10, w = 380, h = 160 },
+      name     = "weather",
+      params   =
+        { direction = "vertical",
+          align = "top",
+          interline = 0,
+          scrollAlways = True,
+          autoWordWrap = True,
+          speed = 0.25,
+          clearColor = $A0000000,
+          bounce = False,
+          loop = True,
+          margins = 
+            { left = 8, right = 8, top = 4, bottom = 4 },
+          font = GFX.Font:New(
+            { name = "data/droid.ttf",
+              size = 26,
+              antialias = True,
+              edge = True,
+              edgeColor = $000000,
+              edgeThikness = 2,
+              color = $FFFFFF,
+              bold = True,
+              italic = False,
+              underline = False,
+              shadow = False,
+              shadowColor = $44000000,
+              shadowDirection = #SHDWSOUTHEAST,
+              shadowDistance = 2,
+              encoding = #ENCODING_UTF8,
+              engine = #FONTENGINE_INBUILT,
+              cache = True
+              })
+          }
+      },
+      
+      */
+      /*
+    { type     = "news",
+      geometry = { x = 0, y = 450, w = 800, h = 30 },
+      name     = "news",
+      params   =
+        { direction = "horizontal",
+          align = "left",
+          interline = 0,
+          scrollAlways = True,
+          autoWordWrap = False,
+          newLineReplacer = " | ",
+          speed = 1,
+          clearColor = $FF000000,
+          bounce = False,
+          loop = True,
+          margins = 
+            { left = 2, right = 2, top = 0, bottom = 0 },
+          font = GFX.Font:New(
+            { name = "data/droid.ttf",
+              size = 28,
+              antialias = True,
+              edge = True,
+              edgeColor = $000000,
+              edgeThikness = 2,
+              color = $FFFFFF,
+              bold = True,
+              italic = False,
+              underline = False,
+              shadow = True,
+              shadowColor = $44000000,
+              shadowDirection = #SHDWSOUTHEAST,
+              shadowDistance = 2,
+              encoding = #ENCODING_UTF8,
+              engine = #FONTENGINE_INBUILT,
+              cache = True
+              })
+          }
+      },*/
+      
+/*
+    { type     = "background",
+      geometry = { x = 0, y = 0, h = 480, w = 800 },
+      name     = "grid",
+      params   = 
+        { file = "data/xGrid.png",
+          smooth = False }
+      }, */
+
+
+
+    })
+    
+EndFunction
+
+;BeginDoubleBuffer()
+    
+Local i, v, l
+Repeat
+  CheckEvents()
+  
+  ; Draw Animations
+  DisableLineHook()
+  i = ListItems(app.layouts[0].objects) - 1
+
+  For l = 0 To i
+    Local o = app.layouts[0].objects[l]
+    If o.objtype = "anim"
+      DisplayAnimFrame(o.id, o.geometry.x, o.geometry.y, o.current,
+        { width       = o.geometry.sw,
+          height      = o.geometry.sh,
+          smoothScale = o.smooth }
+        )
+    
+    ElseIf o.objtype = "image"
+      DisplayBrush(o.id, o.geometry.x, o.geometry.y,
+         { width       = o.geometry.sw,
+           height      = o.geometry.sh,
+           smoothScale = o.smooth }
+          )
+    ElseIf o.objtype = "scroller"
+      SetClipRegion(o.clipid)
+      
+      DisplayBrush(o.id, o.x, o.y,
+         { width       = o.geometry.sw,
+           height      = o.geometry.sh,
+           smoothScale = o.smooth }
+          )
+      SetClipRegion(#NONE)
+    EndIf
+  Next
+  EnableLineHook()
+  
+  Flip(False)
+  
+Forever
+
+/*
+continuare con le news
+- la lettura delle news la prendo dall'altro programma
+  app.setNewsSource()
+  Lo scrolling delle news
+  
+  app.setMeteoSource()
+  */

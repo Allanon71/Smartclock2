@@ -1,0 +1,136 @@
+// -----------------------------
+// Pixelated Layout
+// -----------------------------
+
+// Screen Definition
+// -----------------
+{ screen
+  [SIN]native_width  = 400
+  [SIN]native_height = 240
+  [SIN]scaled_width  = 800
+  [SIN]scaled_height = 480
+  [SBL]borderless    = 1
+  [SBL]sizeable      = 0
+  [SBL]fixed         = 1
+  [SBL]nomodeswitch  = 0
+  [SBL]noclose       = 1
+  [SBL]hidepointer   = 1
+  [SBL]smoothscale   = 0
+  }
+
+// Layout
+// ------
+{ layout
+  { #0
+    // Background Animation
+    [SST]type = background
+    [SST]name = bganim
+    { geometry
+      [SBL]relative = 1
+      [SIN]x = 0
+      [SIN]y = 0
+      [SFL]w = 1
+      [SFL]h = 1
+      }
+    { params
+      [SST]file   = data/ANM_AnimBG_03.gif
+      [SIN]fps    = 10
+      [SBL]smooth = 0
+      }
+    }
+  { #1
+    // Digital Clock
+    [SST]type = text
+    [SST]name = digitalclock
+    [SBL]smooth = 0
+    { geometry
+      [SBL]relative = 1
+      [SFL]x = 0.000
+      [SFL]y = 0
+      [SFL]w = 1
+      [SFL]h = 0.580
+      }
+    { params
+      [SIN]freq         = 250
+      [SCL]clearcolor   = $FF000000
+      [SST]content      = {HH}:{mm}
+      [CNS]alignment    = #CENTER
+      [SST]type         = digital-clock
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SFL]size      = 0.625
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $40000000
+        [SIN]edgethikness = 4
+        [SCL]color     = $90FFFFFF
+        [SBL]bold      = 1
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $66222222
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 5
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #2
+    // Date
+    [SST]type = text
+    [SST]name = date
+    { geometry
+      [SBL]relative = 1   
+      [SFL]x  = 0.050
+      [SFL]y  = 0.785
+      [SFL]w  = 0.900
+      [SFL]h  = 0.210
+      }
+    { params
+      [SST]type         = date
+      [SIN]freq         = 1000
+      [SCL]clearcolor   = $FF000000
+      [SST]content      = {dd} {mn} {yyyy}
+      [CNS]alignment    = #CENTER
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SFL]size      = 0.2
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $30000000
+        [SIN]edgethikness = 3
+        [SCL]color     = $30DDDDDD
+        [SBL]bold      = 0
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #3
+    // Grid for retro fx
+    [SST]type = background
+    [SST]name = grid
+    { geometry
+      [SBL]relative = 1
+      [SFL]x = 0
+      [SFL]y = 0
+      [SFL]w = 1
+      [SFL]h = 1
+      [SFL]sw = 1
+      [SFL]sh = 1
+      }
+    { params
+      [SST]file   = data/xGrid400x240.png
+      [SBL]smooth = 0
+      }
+    }    
+  }

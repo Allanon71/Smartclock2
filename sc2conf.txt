@@ -1,0 +1,106 @@
+// -------------------------------
+// Smartclock 2 configuration file
+// -------------------------------
+// Explanation about strings in square brackets
+// I've developed this configuration system so that variable types can be
+// specified, in this file you will encounter:
+// [SIN] -> Single Integer entry
+// [SBL] -> Single Boolean entry
+// [SFL] -> Single Floating entry
+// [SCL] -> Single Color entry
+// [MST] -> Multiple Strings entry
+// [SST] -> Single String entry
+// [FNN] -> Font Name entry (inbuilt fonts: #SANS, #SERIF, #MONOSPACE)
+// [CNS] -> Constant Name entry
+// Please have a look at the FS.Config.Load() function in the FileSystem library
+// for more details and more tags.
+// -----------------------------
+
+// Months & Weekdays translations
+// ------------------------------
+{ date
+  [MST]months = -, Gennaio, Febbraio, Marzo, Aprile, Maggio, Giugno, Luglio, Agosto, Settembre, Ottobre, Novembre, Dicembre
+  [MST]wdays = Lunedì, Martedì, Mercoledì, Giovedì, Venerdì, Sabato, Domenica
+  }
+
+// Text colors for special tags
+// ----------------------------
+// Hilight color, Error color and Pub date color for the news
+[SCL]color_hilight = $FFFF00
+[SCL]color_error   = $FF0000
+[SCL]color_pubdate = $00FF00
+
+// Weather informations to display & update frequency in seconds
+// -------------------------------------------------------------
+{ weather
+  // Refresh weather data time (seconds)
+  [SIN]updatefreq   = 3600
+
+  // translations
+  [SST]meteo        = Meteo
+  [SST]fetcherror   = Errore
+  [SST]wind         = Vento
+  [SST]speed        = Km/h
+  [SST]sunrise      = Alba
+  [SST]sunset       = Tramonto
+  [SST]temperature  = Temperatura
+  [SST]humidity     = Umidità
+  [SST]pressure     = Pressione
+  [SST]feelslike    = Percepita
+  [SST]dewpoint     = Punto di rugiada
+  [SST]clouds       = Nuvole
+  [SST]rain         = Pioggia
+  [SST]uvi          = Ultravioletti
+  [SST]forecast     = Previsione
+
+  // Wind directions
+  [MST]directions   = Nord, NNE, NE, ENE, Est, ESE, SE, SSE, Sud, SSO, SO, OSO, Ovest, ONO, NO, NNO, Nord
+
+  // current weather
+  [SBL]showwind     = 1
+  [SBL]showsunrise  = 1
+  [SBL]showsunset   = 1
+  [SBL]showtemp     = 1
+  [SBL]showflike    = 1
+  [SBL]showhumidity = 1
+  [SBL]showpressure = 1
+  [SBL]showdesc     = 1
+  [SBL]showdewpoint = 1
+  [SBL]showclouds   = 1
+  [SBL]showuvi      = 1
+
+  // forecast
+  [SBL]showfcwind   = 1
+  [SBL]showfcrain   = 1
+  [SBL]showfcclouds = 1
+
+  // Weather request on OpenWeather
+  { request
+    [SST]apikey        = -- put your OpenWeather key here --
+    [SST]language      = it
+    [SST]units         = metric
+    [SFL]latitude      = 42.24
+    [SFL]longitude     = 11.22
+    [SIN]forecast_days = 3
+    [SST]exclude       = minutely,hourly
+    [SST]city          = Capalbio Scalo
+    [SST]url           = http://api.openweathermap.org/data/2.5/onecall?
+    }
+  }
+
+// News update frequency in seconds, translations & RSS URL
+{ news
+  [SIN]updatefreq = 1800
+  [SST]title      = Prima Pagina
+  [SST]fetcherror = Errore
+  [SST]url        = https://rss.adnkronos.com/RSS_PrimaPagina.xml
+  }
+  
+// Actions
+{ actions
+  [SBL]clicktochange = 1
+  }
+  
+// Misc
+// Sliding Text Frequency Updater
+[SIN]slt_update_freq = 5

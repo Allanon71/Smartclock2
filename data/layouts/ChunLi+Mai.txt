@@ -1,0 +1,236 @@
+// -----------------------------
+// Chun-Li & Mai Shiranui Layout
+// -----------------------------
+
+// Screen Definition
+// -----------------
+{ screen
+  [SIN]native_width  = 800
+  [SIN]native_height = 480
+  [SIN]scaled_width  = 800
+  [SIN]scaled_height = 480
+  [SBL]borderless    = 1
+  [SBL]sizeable      = 0
+  [SBL]fixed         = 1
+  [SBL]nomodeswitch  = 0
+  [SBL]noclose       = 1
+  [SBL]hidepointer   = 1
+  [SBL]smoothscale   = 0
+  }
+
+// Layout
+// ------
+{ layout
+  { #0
+    // Animated Background
+    [SST]type = background
+    [SST]name = bganim
+    { geometry
+      [SIN]x = 0
+      [SIN]y = 0
+      [SIN]w = 800
+      [SIN]h = 480
+      }
+    { params
+      [SST]file   = data/SF_AnimBG_01.gif
+      [SIN]fps    = 5
+      [SBL]smooth = 0
+      }
+    }
+  { #1
+    // Chun-Li with an idle animation
+    [SST]type = background
+    [SST]name = chunli
+    { geometry
+      [SIN]x = -30
+      [SIN]y = -15
+      [SIN]w = 429
+      [SIN]h = 495
+      }
+    { params
+      [SST]file   = data/SF_ChunLi_01.gif
+      [SIN]fps    = 12
+      [SBL]smooth = 0
+      }
+    }
+  { #2
+    // Mai Shiranui with an idle animation
+    [SST]type = background
+    [SST]name = maishiranui
+    { geometry
+      [SIN]x = 400
+      [SIN]y = 162
+      [SIN]w = 395
+      [SIN]h = 318
+      }
+    { params
+      [SST]file   = data/KOF_MaiShiranui_01.gif
+      [SIN]fps    = 14
+      [SBL]smooth = 0
+      }
+    }
+  { #3
+    // Digital Clock
+    [SST]type = text
+    [SST]name = digitalclock
+    { geometry
+      [SIN]x = 410
+      [SIN]y = 0
+      [SIN]w = 390
+      [SIN]h = 100
+      //[SIN]sw = 800
+      //[SIN]sh = 200
+      }
+    { params
+      [SIN]freq         = 250
+      [CNS]alignment    = #CENTER
+      [SCL]clearcolor   = $FF000000
+      [SST]type         = digital-clock
+      [SST]content      = {HH}:{mm}:{ss}
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SIN]size      = 100
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 4
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 1
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 1
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #4
+    // Date
+    [SST]type = text
+    [SST]name = date
+    { geometry
+      [SIN]x = 580
+      [SIN]y = 85
+      [SIN]w = 220
+      [SIN]h = 40
+      }
+    { params
+      [SST]type         = date
+      [SIN]freq         = 500
+      [SST]content      = {dd} {mn} {yyyy}
+      [SCL]clearcolor   = $FF000000
+      [CNS]alignment    = #CENTER
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SIN]size      = 30
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 4
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 1
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #5
+    // Weather
+    [SST]type = scroller
+    [SST]name = weather
+    { geometry
+      [SIN]x = 10
+      [SIN]y = 10
+      [SIN]w = 380
+      [SIN]h = 160
+      [SIN]sw= 380
+      [SIN]sh= 160
+      }
+    { params
+      [SBL]pause = 1
+      [SIN]pauselen = 400
+      [SIN]freq = 10
+      [SST]content = {weather}
+      [SIN]offsetx = 0
+      [SIN]offsety = 0
+      [SST]direction    = vertical
+      [CNS]alignment    = #LEFT
+      [SFL]speed        = 2
+      [SCL]clearcolor   = $B0000000
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SIN]size      = 40
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 4
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 1
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 0
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 3
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  { #6
+    // News
+    [SST]type = scroller
+    [SST]name = news
+    { geometry
+      [SIN]x = 0
+      [SIN]y = 440
+      [SIN]w = 800
+      [SIN]h = 40
+      [SIN]sw= 800
+      [SIN]sh= 40
+      }
+    { params
+      [SBL]pause = 0
+      [SIN]pauselen = 400
+      [SIN]freq = 10
+      [SST]content = {news}
+      [SIN]offsetx = 0
+      [SIN]offsety = 0
+      [SST]direction    = horizontal
+      [CNS]alignment    = #LEFT
+      [SFL]speed        = 2
+      [SCL]clearcolor   = $B0000000
+      { fontspec
+        [SST]name      = data/droid.ttf
+        [SIN]size      = 38
+        [SBL]antialias = 1
+        [SBL]edge      = 1
+        [SCL]edgecolor = $000000
+        [SIN]edgethikness = 2
+        [SCL]color     = $FFFFFF
+        [SBL]bold      = 1
+        [SBL]italic    = 0
+        [SBL]underline = 0
+        [SBL]shadow    = 1
+        [SCL]shadowcolor = $44000000
+        [CNS]shadowdirection = #SHDWSOUTHEAST
+        [SIN]shadowdistance = 2
+        [CNS]encoding  = #ENCODING_UTF8
+        [CNS]engine    = #FONTENGINE_INBUILT
+        [SBL]cache     = 1
+        }
+      }
+    }
+  }
