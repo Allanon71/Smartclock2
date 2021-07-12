@@ -7,6 +7,7 @@
 Smartclock is an evolution of a project I started some time ago. It is an application that can display a clock, weather data and news.
 I developed this program for my personal use since I had a rpi4 laying around on my desk, I also needed a nice, nerdish and cute clock able to display animated Gifs, still images, clock in several layouts, current date, current weather and forecasts, I also needed an rss viewer for the latest news.
 Have a look at the `screenshot` folder to see what you can get with this program.
+[![sc2-anim.gif](https://i.postimg.cc/3JS62TTt/sc2-anim.gif)](https://postimg.cc/zVh0143h)
 
 ### Warning for Linux users
 If you are going to run this program on Linux, you may encounter an error related to libSSL, to resolve the problem you have to install the SSL lib version 1.0.0.  
