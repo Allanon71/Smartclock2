@@ -111,7 +111,7 @@ No copyright infrangement intended.
 All code in this repository is released under the terms of the MIT license.
 
 ### Media
-if you are curious to see what it looks like take a look at the video on YouTube
+if you are curious to see what it looks like take a look at the screenshots
 
 ### Support me
 If you like my work and you want to buy me a coffee you can support me on Patreon https://www.patreon.com/Allanon71  or using PayPal to mailto:hijoe@tin.it     
