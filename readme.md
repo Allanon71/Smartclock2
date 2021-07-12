@@ -8,8 +8,6 @@ Smartclock is an evolution of a project I started some time ago. It is an applic
 I developed this program for my personal use since I had a rpi4 laying around on my desk, I also needed a nice, nerdish and cute clock able to display animated Gifs, still images, clock in several layouts, current date, current weather and forecasts, I also needed an rss viewer for the latest news.
 Have a look at the `screenshot` folder to see what you can get with this program.
 
-[sc2-anim.gif](https://postimg.cc/zVh0143h)
-
 ### Warning for Linux users
 If you are going to run this program on Linux, you may encounter an error related to libSSL, to resolve the problem you have to install the SSL lib version 1.0.0.  
 Here is the link for the **Raspberry Pi** that I used to resolve the problem on my little machine: https://packages.debian.org/jessie/armhf/libssl1.0.0/download
@@ -31,7 +29,7 @@ This program has been coded using Hollywood-MAL v9
 https://www.hollywood-mal.com
 
 ### How does it work?
-You need to configure the master configuration file `sc2conf.txt` where you can setup the main options which are:  
+You need to configure the master configuration file `sc2conf.txt` where you can setup the main options which are:   
 * Translations : you can assign your own translations for your language
 * Text colors : define your preferred colors for the text elements
 * Weather data : set the interval between each update, which data you want to display for the current weather and for the forecast, the units to use, the language for the api, your apikey, your location's coordinates, and how many forecast days you want to display.
